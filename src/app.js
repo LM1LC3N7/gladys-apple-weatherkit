@@ -568,7 +568,12 @@ export class WeatherKitApp {
       res = await this.call(url, cfg, gen, { deadline });
     } catch (err) {
       if (err.local) {
+        this.notServed.delete(key);
         this.notServed.set(key, { until: this.monotonic() + cfg.value.refreshMs, text: err.text });
+        // Bounded: the oldest hold goes first (MAX_CACHE_ENTRIES locations).
+        while (this.notServed.size > MAX_CACHE_ENTRIES) {
+          this.notServed.delete(this.notServed.keys().next().value);
+        }
       }
       throw err;
     }

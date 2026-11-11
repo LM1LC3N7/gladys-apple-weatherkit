@@ -256,5 +256,11 @@
     "file": "src/app.js",
     "from": "return T.unreadable(err.message);",
     "to": "throw err;"
+  },
+  {
+    "name": "4xx holds: bounded",
+    "file": "src/app.js",
+    "from": "while (this.notServed.size > MAX_CACHE_ENTRIES) {",
+    "to": "while (this.notServed.size > 1e9) {"
   }
 ]

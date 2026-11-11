@@ -738,3 +738,17 @@ test('the secret never shows: every token, the whole key, on every failure path'
     }
   }
 });
+
+test('the 4xx holds are bounded: the oldest location goes first', async () => {
+  const { app, gladys } = await setup({ handler: () => json({}, { status: 404 }) });
+  for (let i = 0; i < 20; i += 1) {
+    await gladys.fake.weatherGet({ ...REQUEST, latitude: i, longitude: i });
+  }
+  assert.equal(app.notServed.size, 8);
+  assert.equal(fake.calls.length, 20);
+  // the first location was dropped: asked again; the last is still held
+  await gladys.fake.weatherGet({ ...REQUEST, latitude: 0, longitude: 0 });
+  await gladys.fake.weatherGet({ ...REQUEST, latitude: 19, longitude: 19 });
+  assert.equal(fake.calls.length, 21);
+  assert.equal(app.notServed.size, 8);
+});
