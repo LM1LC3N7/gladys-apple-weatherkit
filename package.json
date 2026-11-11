@@ -1,6 +1,6 @@
 {
   "name": "gladys-apple-weatherkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Apple WeatherKit weather provider for Gladys Assistant: current conditions, hourly and daily forecasts, official alerts, with the user own Apple Developer key.",
   "type": "module",

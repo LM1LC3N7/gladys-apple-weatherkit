@@ -6,6 +6,8 @@ uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-11
+
 ### Added
 
 - Apple WeatherKit as the weather provider of Gladys: current conditions, 24
@@ -16,3 +18,6 @@ uses [semantic versioning](https://semver.org/).
   kept in `/data` across restarts.
 - Credentials refused twice in a row are no longer sent; "Test WeatherKit"
   checks them and lifts the refusal.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-apple-weatherkit/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-apple-weatherkit/releases/tag/v0.1.1
