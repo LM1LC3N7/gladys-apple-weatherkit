@@ -13,6 +13,11 @@ export const API_BASE = 'https://weatherkit.apple.com';
 export const MAX_BODY_BYTES = 1_000_000;
 // Gladys waits 15 s for the weather: one request and its retry fit.
 export const HTTP_TIMEOUT = 6_000;
+// Everything of one weather request (waiting for /data, counting, the call and
+// its retry) ends within this, under the 15 s of Gladys.
+export const ANSWER_BUDGET = 13_000;
+// A call with less time than this left does not leave.
+export const MIN_CALL_TIME = 1_500;
 
 // The signed token (JWT): valid 1 hour at Apple, reused 30 minutes here.
 export const TOKEN_LIFETIME_S = 3600;

@@ -7,7 +7,8 @@ import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { verify } from 'node:crypto';
 import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { WeatherKitApp } from '../src/app.js';
+import { WeatherKitApp, refusalMark } from '../src/app.js';
+import { normalizeConfig } from '../src/config.js';
 import { ACTIONS } from '../src/constants.js';
 import { Store } from '../src/store.js';
 import { testClock } from './helpers/clock.js';
@@ -256,7 +257,7 @@ test('refused twice in a row: recorded (salted hash), never sent again on its ow
   assert.equal(fake.calls.length, 2);
   assert.match((await status(gladys)).message.en, /refused these credentials twice/);
   const saved = fs.state();
-  assert.match(saved.refused.id, /^[0-9a-f]{64}$/);
+  assert.match(saved.refused.id, /^[0-9a-f]{2}$/);
   assert.doesNotMatch(JSON.stringify(saved), new RegExp(KEY_BODY.slice(0, 20)));
 
   // Hours later, a restart: still nothing sent with them.
@@ -268,8 +269,15 @@ test('refused twice in a row: recorded (salted hash), never sent again on its ow
   assert.equal(fake.calls.length, 0);
   assert.match((await status(again.gladys)).message.en, /refused these credentials/);
 
-  // New credentials (another key): always tried.
-  const other = makeKey();
+  // New credentials (another key whose byte differs: after a restart only the
+  // byte is known, a 1-in-256 collision is lifted by the test button).
+  let other;
+  for (let tries = 0; ; tries += 1) {
+    assert.ok(tries < 50, 'every new key gives the refused byte');
+    other = makeKey();
+    const id = normalizeConfig({ ...CONFIG, private_key: other.pem }).value.credentialsId;
+    if (refusalMark(saved.salt, id) !== saved.refused.id) break;
+  }
   const fixed = await setup({ fs, clock, config: { ...CONFIG, private_key: other.pem } });
   assert.equal((await fixed.gladys.fake.weatherGet(REQUEST)).success, true);
   assert.equal(fake.calls.length, 1);
@@ -571,19 +579,162 @@ test('invalid coordinates are refused before any call', async () => {
   assert.equal(weatherCalls().length, 0);
 });
 
-test('the secret never shows: logs, statuses, /data, errors', async () => {
-  const { gladys, logger, fs, state, clock } = await setup();
+test('the refusal mark: one byte, salted; a guess matches 1 time in 256', () => {
+  const salt = '0123456789abcdef0123456789abcdef';
+  const id = normalizeConfig(CONFIG).value.credentialsId;
+  const mark = refusalMark(salt, id);
+  assert.match(mark, /^[0-9a-f]{2}$/);
+  // brute force over 25,600 other credential sets: about 100 match the byte
+  let matches = 0;
+  for (let i = 0; i < 25_600; i += 1) {
+    if (refusalMark(salt, `guess-${i}`) === mark) matches += 1;
+  }
+  assert.ok(matches > 40 && matches < 200, String(matches));
+  // the salt counts: the same credentials under other salts give other bytes
+  const marks = new Set(
+    Array.from({ length: 64 }, (_, i) => refusalMark(i.toString(16).padStart(32, '0'), id)),
+  );
+  assert.ok(marks.size > 20, String(marks.size));
+});
+
+test('credentials changed while running: tried even if their byte collides', async () => {
+  const { app, gladys, fs, state } = await setup({ handler: () => json({}, { status: 401 }) });
   await gladys.fake.weatherGet(REQUEST);
-  const token = fake.calls[0].init.headers.Authorization.slice(7);
-  state.handler = () => json({}, { status: 401 });
+  assert.ok(fs.state().refused);
+  const other = { ...CONFIG, private_key: makeKey().pem };
+  // force the collision: the byte in /data is the one of the new credentials
+  app.state.refused = refusalMark(app.state.salt, normalizeConfig(other).value.credentialsId);
+  state.handler = () => json(weatherBody());
+  await app.start(other);
+  assert.equal((await gladys.fake.weatherGet(REQUEST)).success, true);
+  assert.equal(fs.state().refused, null);
+});
+
+test('Retry-After 0 or missing: 60 s, never a loop', async () => {
+  for (const headers of [{ 'retry-after': '0' }, {}]) {
+    const { gladys, clock } = await setup({ handler: () => json({}, { status: 429, headers }) });
+    await gladys.fake.weatherGet(REQUEST);
+    await clock.advance(59_000);
+    await gladys.fake.weatherGet(REQUEST);
+    assert.equal(fake.calls.length, 1, JSON.stringify(headers));
+    await clock.advance(2_000);
+    await gladys.fake.weatherGet(REQUEST);
+    assert.equal(fake.calls.length, 2, JSON.stringify(headers));
+  }
+});
+
+test('a 404 holds only its location, one interval, without a global pause', async () => {
+  const { gladys, fs, clock, state } = await setup();
+  state.handler = (call) =>
+    call.url.pathname.includes('/10/') ? json({}, { status: 404 }) : json(weatherBody());
+  const far = { ...REQUEST, latitude: 10, longitude: 10 };
+  assert.equal((await gladys.fake.weatherGet(far)).success, false);
+  assert.equal((await gladys.fake.weatherGet(REQUEST)).success, true);
+  assert.equal(fake.calls.length, 2);
+  assert.equal(fs.state().pause, null);
+  assert.match((await gladys.fake.weatherGet(far)).error ?? '', /does not serve/);
+  assert.equal(fake.calls.length, 2);
+  await clock.advance(15 * MIN);
+  await gladys.fake.weatherGet(far);
+  assert.equal(fake.calls.length, 3);
+});
+
+test('one token signed for calls within 30 minutes, a new one after', async () => {
+  const { gladys, clock } = await setup();
+  await gladys.fake.weatherGet(REQUEST);
+  await clock.advance(15 * MIN);
+  await gladys.fake.weatherGet(REQUEST);
   await clock.advance(16 * MIN);
+  await gladys.fake.weatherGet(REQUEST);
+  const auth = fake.calls.map((c) => c.init.headers.Authorization);
+  assert.equal(auth.length, 3);
+  assert.equal(auth[0], auth[1]);
+  assert.notEqual(auth[1], auth[2]);
+});
+
+test('the copy is shared by points that round to the same 3 decimals', async () => {
+  const { gladys } = await setup();
+  await gladys.fake.weatherGet({ ...REQUEST, latitude: 48.85661 });
+  await gladys.fake.weatherGet({ ...REQUEST, latitude: 48.85651 });
+  assert.equal(fake.calls.length, 1);
+});
+
+test('the language: its base is used (pt-BR -> pt), anything else en', async () => {
+  const { gladys, clock } = await setup();
+  await gladys.fake.weatherGet({ ...REQUEST, language: 'pt-BR' });
+  await clock.advance(16 * MIN);
+  await gladys.fake.weatherGet({ ...REQUEST, language: '../x' });
+  assert.deepEqual(
+    fake.calls.map((c) => c.url.pathname.split('/')[4]),
+    ['pt', 'en'],
+  );
+});
+
+test('a retry that cannot end before Gladys gives up does not leave', async () => {
+  let clockRef;
+  const { gladys, fs } = await setup({
+    handler: async () => {
+      await clockRef.advance(12_000);
+      return json({}, { status: 401 });
+    },
+    clock: (clockRef = testClock()),
+  });
   const ack = await gladys.fake.weatherGet(REQUEST);
+  assert.equal(ack.success, false);
+  assert.match(ack.error ?? '', /Not enough time/);
+  assert.equal(fake.calls.length, 1);
+  assert.equal(fs.state().refused, null);
+});
+
+test('the test button: an unreadable answer is said in both languages', async () => {
+  const { gladys, state } = await setup();
+  state.handler = () => json('{}');
+  const ack = await gladys.fake.action(ACTIONS.TEST);
+  assert.match(ack.data.message.fr, /illisible/);
+  assert.match(ack.data.message.en, /unreadable/);
+});
+
+test('the secret never shows: every token, the whole key, on every failure path', async () => {
+  const { app, gladys, logger, fs, state, clock } = await setup();
+  const second = makeKey();
+  const paths = [
+    () => json(weatherBody()),
+    () => json({}, { status: 401 }),
+    () => json({}, { status: 503 }),
+    () => json({}, { status: 429, headers: { 'retry-after': '1' } }),
+    () => {
+      throw new TypeError('fetch failed');
+    },
+    () => ({ status: 200, body: 'x'.repeat(1_100_000) }),
+    () => json('{"currentWeather":{}}'),
+  ];
+  const acks = [];
+  for (const [i, handler] of paths.entries()) {
+    state.handler = handler;
+    // a new key for each path after the refusal, so that every path is sent
+    if (i === 2) await app.start({ ...CONFIG, private_key: second.pem });
+    await clock.advance(2 * 3600_000);
+    acks.push(await gladys.fake.weatherGet(REQUEST));
+    acks.push(await gladys.fake.action(ACTIONS.TEST));
+  }
+  const tokens = fake.calls.map((c) => c.init.headers.Authorization.slice(7));
+  assert.ok(new Set(tokens).size >= 3, String(new Set(tokens).size));
+  await status(gladys);
   const everything = [
     logger.lines.join('\n'),
-    (await status(gladys), JSON.stringify(statuses(gladys))),
+    JSON.stringify(statuses(gladys)),
     [...fs.files.values()].join('\n'),
-    JSON.stringify(ack),
+    JSON.stringify(acks),
   ].join('\n');
-  assert.doesNotMatch(everything, new RegExp(KEY_BODY.slice(0, 20)));
-  assert.ok(!everything.includes(token.split('.')[2]));
+  for (const pem of [KEY.pem, second.pem]) {
+    const keyLines = pem.split('\n').filter((l) => l && !l.startsWith('-----'));
+    for (const line of [...keyLines, keyLines.join('')]) {
+      assert.ok(!everything.includes(line), 'key line leaked');
+    }
+  }
+  for (const token of tokens) {
+    for (const part of [token, ...token.split('.')]) {
+      assert.ok(!everything.includes(part), 'token leaked');
+    }
+  }
 });

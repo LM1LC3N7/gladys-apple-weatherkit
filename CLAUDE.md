@@ -48,8 +48,11 @@ test/helpers/       clock that advances, fake fetch, memory /data, generated key
 - Decisions (copy age, pauses, token reuse, test spacing) use the injected
   `monotonic` clock; the wall clock only signs the token, names the month,
   dates `/data` and drops past hours.
-- A 401/403 is a refusal only twice in a row; a refused set is a salted hash
-  of the ids and of the public key, and new credentials are always tried.
+- A 401/403 is a refusal only twice in a row; `/data` keeps one byte of a
+  salted hash of the ids and of the public key; credentials changed while
+  running are always tried (the full id of the refused set is kept in memory).
+- Other 4xx hold back their location only, for one interval; no global pause.
+- A weather request ends within 13 s (no call leaves with less than 1.5 s).
 - Every call is counted in `/data` before it leaves; every failure pauses.
 - An unknown value stays out of the answer, never 0.
 - Unit tests for every change; `npm run format:check`, `lint`, `test` before

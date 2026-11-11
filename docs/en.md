@@ -52,6 +52,9 @@ budget is reached.
   6 hours; without the header, 60 s then doubled.
 - **Server error, unreadable, oversized (over 1 MB) or missing answer**: 60 s pause, doubled at each failure up
   to 1 hour.
+- **Other 4xx (400, 404...)**: the location or the country is not served; only that location is held back for one
+  refresh interval, the others go on.
+- Gladys waits 15 s for an answer: a call (or its retry after a 401) that cannot end in time does not leave.
 - During a pause or an outage, Gladys gets the last copy if it is under one hour old, with its own date (never
   presented as new); otherwise an error, and Gladys moves on to its next provider.
 - Pauses, the counter and the copies are kept in `/data`: a restart does not trigger a call.
@@ -59,15 +62,19 @@ budget is reached.
 ## Refused credentials
 
 A single 401 or 403 stops nothing: the request is made once more with a new token. Refused **twice in a row**,
-the credentials are recorded as refused (a salted hash of the identifiers and of the **public** key, nothing
-secret) and no request leaves with them any more. This is lifted by saving different credentials (tried at
-once) or by a success of **Test WeatherKit**.
+the credentials are recorded as refused and no request leaves with them any more. `/data` keeps only **one
+byte** of a salted hash of the identifiers and of the **public** key: nothing secret, and nothing a reader could
+check a guess against (one guess in 256 matches). Saving different credentials while the integration runs lifts
+the refusal at once. After a restart only that byte is known: new credentials whose byte happens to be the same
+(1 chance in 256) stay held back until a success of **Test WeatherKit**, which always makes its call.
 
 ## What is sent to Apple
 
-The coordinates of the house rounded to 3 decimals (about 100 m), the user's language, the alert country, and a
-token signed for one hour. `/data/state.json` holds the month counter, the pause, a salted hash of refused
-credentials and the last answers (without coordinates).
+The coordinates of the house rounded to 3 decimals (about 100 m), the user's language (its base: `pt-BR` → `pt`),
+the alert country, and a token signed for one hour. `/data/state.json` holds the month counter, the pause, one
+byte marking refused credentials, and the last answers. The answers carry no coordinates, but each is filed under
+a salted hash of the rounded location: with the salt beside it, the location can be found back by brute force,
+and the alerts name their area. `/data` stays on your Gladys.
 
 ## Mappings
 

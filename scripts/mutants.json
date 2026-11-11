@@ -20,8 +20,8 @@
   {
     "name": "refusal: lifted by a success",
     "file": "src/app.js",
-    "from": "      if (this.state.refused === hash) this.state.refused = null;\n",
-    "to": ""
+    "from": "if (this.state.refused === hash) {",
+    "to": "if (false) {"
   },
   {
     "name": "credentials id: the public key counts",
@@ -190,5 +190,71 @@
     "file": "src/jwt.js",
     "from": "key.asymmetricKeyType === 'ec' && key.asymmetricKeyDetails?.namedCurve === 'prime256v1'",
     "to": "key.asymmetricKeyType === 'ec'"
+  },
+  {
+    "name": "refusal mark: salted",
+    "file": "src/app.js",
+    "from": "sha(salt, credentialsId).slice(0, 2)",
+    "to": "sha(credentialsId).slice(0, 2)"
+  },
+  {
+    "name": "refusal mark: one byte only",
+    "file": "src/app.js",
+    "from": "sha(salt, credentialsId).slice(0, 2)",
+    "to": "sha(salt, credentialsId)"
+  },
+  {
+    "name": "refusal: lifted when the credentials change while running",
+    "file": "src/app.js",
+    "from": "this.config.value.credentialsId !== this.refusedId",
+    "to": "false"
+  },
+  {
+    "name": "429: 60 s floor",
+    "file": "src/app.js",
+    "from": "Math.min(Math.max(ms, PAUSE_MIN), max)",
+    "to": "Math.min(ms, max)"
+  },
+  {
+    "name": "secret: the token never logged",
+    "file": "src/app.js",
+    "from": "(HTTP ${res.status}, twice)`",
+    "to": "(HTTP ${res.status}, twice) ${token}`"
+  },
+  {
+    "name": "4xx: only the location held",
+    "file": "src/app.js",
+    "from": "if (res.status >= 400 && res.status < 500) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "4xx: the location held one interval",
+    "file": "src/app.js",
+    "from": "if (held !== undefined && this.monotonic() < held.until) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "token: reused 30 minutes",
+    "file": "src/app.js",
+    "from": "mono - this.token.mono < TOKEN_REUSE",
+    "to": "mono - this.token.mono < 0"
+  },
+  {
+    "name": "deadline: no call without time",
+    "file": "src/app.js",
+    "from": "deadline - this.monotonic() < MIN_CALL_TIME",
+    "to": "deadline - this.monotonic() < -1e9"
+  },
+  {
+    "name": "language: base kept",
+    "file": "src/app.js",
+    "from": "const lang = base ? base[1] : 'en';",
+    "to": "const lang = base ? language : 'en';"
+  },
+  {
+    "name": "test button: unreadable said in both languages",
+    "file": "src/app.js",
+    "from": "return T.unreadable(err.message);",
+    "to": "throw err;"
   }
 ]

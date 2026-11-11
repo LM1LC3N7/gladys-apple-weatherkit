@@ -9,9 +9,14 @@
 - `location: true` only for the test button (it reads the availability at the
   first located house, or at Apple Park when none is located).
 - Credentials refused only after two 401/403 in a row (a new token for the
-  second): WeatherKit is known to answer one 401 for nothing. The refusal is a
-  salted hash of the ids and of the PUBLIC key: nothing secret in `/data`, and
-  new credentials are always tried.
+  second): WeatherKit is known to answer one 401 for nothing. The refusal is one
+  byte of a salted hash of the ids and of the PUBLIC key in `/data` (review
+  r1); credentials changed while running are always tried; after a restart a
+  1-in-256 collision is lifted by the test button (documented).
+- Other 4xx (400/404) hold back their location for one interval, no global
+  pause. A weather request ends within 13 s of the 15 s of Gladys.
+- The copies in `/data` are filed under a salted hash of the rounded location
+  (the docs say it can be brute-forced with the salt beside it).
 - Every failure pauses (429: Retry-After against Apple's Date, 60 s - 6 h;
   others: 60 s doubled up to 1 h); a copy under 1 h is served meanwhile, with
   its own date. No copy: an error, so Gladys falls back to its next provider.

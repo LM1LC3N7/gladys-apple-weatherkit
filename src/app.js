@@ -12,10 +12,13 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { logger as sdkLogger } from '@gladysassistant/integration-sdk';
 import {
+  ANSWER_BUDGET,
   CONFIG_RETRY_MAX,
   CONFIG_RETRY_MIN,
   FALLBACK_POINT,
+  HTTP_TIMEOUT,
   MAX_CACHE_ENTRIES,
+  MIN_CALL_TIME,
   PAUSE_MAX_429,
   PAUSE_MAX_ERROR,
   PAUSE_MIN,
@@ -45,6 +48,13 @@ export class TextError extends Error {
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;
+const MARK = /^[0-9a-f]{2}$/;
+
+/**
+ * The mark of refused credentials kept in /data: ONE byte of a salted hash.
+ * A reader of /data cannot check a guess against it (1 in 256 matches).
+ */
+export const refusalMark = (salt, credentialsId) => sha(salt, credentialsId).slice(0, 2);
 const monthKey = (ms) => new Date(ms).toISOString().slice(0, 7);
 const sha = (...parts) => createHash('sha256').update(parts.join('\n')).digest('hex');
 
@@ -83,6 +93,8 @@ export class WeatherKitApp {
     this.lastStatus = null;
     this.saveFailed = false;
     this.everAnswered = false;
+    this.refusedId = null; // full id of the set refused in THIS process
+    this.notServed = new Map(); // location key -> { until, text } after a 4xx
   }
 
   // --- lifecycle ---------------------------------------------------------------
@@ -132,6 +144,18 @@ export class WeatherKitApp {
     this.loadState();
     await this.waitState(STATE_WAIT);
     if (gen !== this.gen || this.closed) return;
+    // Credentials changed while running: the refusal of the old ones never
+    // holds the new ones back, whatever the byte of /data says.
+    if (
+      this.state?.refused &&
+      this.refusedId &&
+      this.config.value &&
+      this.config.value.credentialsId !== this.refusedId
+    ) {
+      this.state.refused = null;
+      this.refusedId = null;
+      this.persist();
+    }
     this.publishStatus();
   }
 
@@ -221,7 +245,7 @@ export class WeatherKitApp {
       month: typeof raw.month === 'string' && /^\d{4}-\d{2}$/.test(raw.month) ? raw.month : null,
       calls: Number.isInteger(raw.calls) && raw.calls >= 0 ? raw.calls : 0,
       refused:
-        typeof raw.refused?.id === 'string' && HEX64.test(raw.refused.id) ? raw.refused.id : null,
+        typeof raw.refused?.id === 'string' && MARK.test(raw.refused.id) ? raw.refused.id : null,
     };
     // A pause runs on after a restart, from its wall-clock end; an end
     // further than the longest pause is invalid (clock jump, edited file).
@@ -349,7 +373,7 @@ export class WeatherKitApp {
   // --- gates ---------------------------------------------------------------------
 
   credentialsHash(cfg) {
-    return sha(this.state.salt, cfg.value.credentialsId);
+    return refusalMark(this.state.salt, cfg.value.credentialsId);
   }
 
   rollMonth() {
@@ -409,15 +433,19 @@ export class WeatherKitApp {
    * more with a new token; refused twice in a row, the credentials are
    * recorded as refused (a salted hash) and never sent again on their own.
    */
-  async call(url, cfg, gen, { test = false, retried = false } = {}) {
+  async call(url, cfg, gen, { test = false, retried = false, deadline = Infinity } = {}) {
     const gate = this.gate(cfg, { test: test || retried });
     if (gate) throw new TextError(gate);
+    // Gladys waits 15 s: a call that cannot end in time does not leave.
+    if (deadline - this.monotonic() < MIN_CALL_TIME) throw new TextError(T.noTime);
     this.state.calls += 1;
     await this.persistWithin(1000);
     const token = this.tokenFor(cfg);
     let res;
     try {
-      res = await get(url, token);
+      res = await get(url, token, {
+        timeout: Math.min(HTTP_TIMEOUT, Math.max(1, deadline - this.monotonic())),
+      });
     } catch (err) {
       const reason = err instanceof NetworkError ? err.message : 'no answer';
       this.setPause('error', this.nextBackoff(PAUSE_MAX_ERROR), reason);
@@ -429,14 +457,18 @@ export class WeatherKitApp {
       const hash = this.credentialsHash(cfg);
       const changed = this.pause !== null || this.state.refused === hash;
       this.pause = null;
-      if (this.state.refused === hash) this.state.refused = null;
+      if (this.state.refused === hash) {
+        this.state.refused = null;
+        this.refusedId = null;
+      }
       if (changed) this.persist();
       return res;
     }
     if (res.status === 401 || res.status === 403) {
       this.token = null;
-      if (!retried) return this.call(url, cfg, gen, { test, retried: true });
+      if (!retried) return this.call(url, cfg, gen, { test, retried: true, deadline });
       this.state.refused = this.credentialsHash(cfg);
+      this.refusedId = cfg.value.credentialsId;
       this.persist();
       this.logger.warn(`WeatherKit refused the credentials (HTTP ${res.status}, twice)`);
       if (gen === this.gen) this.publishStatus();
@@ -450,6 +482,11 @@ export class WeatherKitApp {
       throw new TextError(T.paused429(this.pause.untilMono - this.monotonic()));
     }
     const reason = `HTTP ${res.status}`;
+    if (res.status >= 400 && res.status < 500) {
+      // 400/404...: this location or country is not served. No global pause:
+      // the caller holds this location back for one interval.
+      throw Object.assign(new TextError(T.notServed(reason)), { local: true });
+    }
     this.setPause('error', this.nextBackoff(PAUSE_MAX_ERROR), reason);
     if (gen === this.gen) this.publishStatus();
     throw new TextError(T.pausedError(reason, this.backoff));
@@ -470,6 +507,7 @@ export class WeatherKitApp {
 
   /** onWeatherGet: answered from the copy, or after one call (under 15 s). */
   async getWeather({ latitude, longitude, language, units } = {}) {
+    const started = this.monotonic();
     const cfg = await this.ensureReady();
     if (
       typeof latitude !== 'number' ||
@@ -479,7 +517,10 @@ export class WeatherKitApp {
     ) {
       throw new TextError(T.badLocation);
     }
-    const lang = typeof language === 'string' && /^[a-z]{2}$/.test(language) ? language : 'en';
+    const deadline = started + ANSWER_BUDGET;
+    const base =
+      typeof language === 'string' ? /^([a-z]{2})(?:[-_][A-Za-z0-9]{2,8})?$/.exec(language) : null;
+    const lang = base ? base[1] : 'en';
     const point = { latitude: round3(latitude), longitude: round3(longitude) };
     const { country, alerts } = cfg.value;
     const key = sha(this.state.salt, point.latitude, point.longitude, lang, country, alerts);
@@ -487,11 +528,22 @@ export class WeatherKitApp {
     if (entry && this.monotonic() - entry.fetchedMono < cfg.value.refreshMs) {
       return this.answer(entry, units);
     }
+    const held = this.notServed.get(key);
+    if (held !== undefined && this.monotonic() < held.until) {
+      if (entry && this.monotonic() - entry.fetchedMono <= STALE_LIMIT)
+        return this.answer(entry, units);
+      throw new TextError(held.text);
+    }
     let fresh;
     try {
       let pending = this.inflight.get(key);
       if (!pending) {
-        pending = this.fetchWeather(key, { ...point, language: lang, country, alerts }, cfg);
+        pending = this.fetchWeather(
+          key,
+          { ...point, language: lang, country, alerts },
+          cfg,
+          deadline,
+        );
         this.inflight.set(key, pending);
         pending.finally(() => this.inflight.delete(key)).catch(() => {});
       }
@@ -508,10 +560,19 @@ export class WeatherKitApp {
     return this.answer(fresh, units);
   }
 
-  async fetchWeather(key, params, cfg) {
+  async fetchWeather(key, params, cfg, deadline) {
     const gen = this.gen;
     const url = weatherUrl({ ...params, nowMs: this.now() });
-    const res = await this.call(url, cfg, gen);
+    let res;
+    try {
+      res = await this.call(url, cfg, gen, { deadline });
+    } catch (err) {
+      if (err.local) {
+        this.notServed.set(key, { until: this.monotonic() + cfg.value.refreshMs, text: err.text });
+      }
+      throw err;
+    }
+    this.notServed.delete(key);
     let snapshot;
     try {
       snapshot = parseWeather(res.text);
@@ -580,7 +641,13 @@ export class WeatherKitApp {
         gen,
         { test: true },
       );
-      const sets = parseAvailability(res.text);
+      let sets;
+      try {
+        sets = parseAvailability(res.text);
+      } catch (err) {
+        if (!(err instanceof AnswerError)) throw err;
+        return T.unreadable(err.message);
+      }
       if (gen === this.gen) {
         this.lastStatus = null;
         this.publishStatus();

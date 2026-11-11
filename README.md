@@ -18,9 +18,9 @@ official alerts of a chosen country, with **your own Apple Developer key**. Not 
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Gladys asks (`onWeatherGet`) | answered from the copy of the location if younger than the interval, else one call to `/api/v1/weather/{lang}/{lat}/{lon}` (coordinates rounded to 3 decimals) |
 | Token                        | JWT ES256 signed in the container with node:crypto (`kid`, `id` = team.service, `iss`, `sub`, 1 hour)                                                          |
-| 401/403                      | tried once more with a new token; twice in a row = refused, never sent again on its own (salted hash of ids + public key in `/data`)                           |
+| 401/403                      | tried once more with a new token; twice in a row = refused, never sent again on its own (one byte of a salted hash of ids + public key in `/data`)             |
 | 429 / errors                 | pause: `Retry-After` (60 s - 6 h) / 60 s doubled up to 1 h; the copy under 1 hour is served meanwhile, with its own date                                       |
-| `/data/state.json`           | month counter, pause, refused hash, last answers (no coordinates, no secret); unreadable = nothing sent, read again every 10 s                                 |
+| `/data/state.json`           | month counter, pause, refused hash, last answers under a salted hash of the location (no secret); unreadable = nothing sent, read again every 10 s             |
 | Test button                  | one call to `/api/v1/availability` at the first located house; lifts a refusal on success; once per 30 s                                                       |
 
 ## Development

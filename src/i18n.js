@@ -36,8 +36,8 @@ export const T = {
     fr: 'WeatherKit répond.',
   },
   refused: {
-    en: 'Apple refused these credentials twice in a row (HTTP 401/403): nothing more is sent with them. Check the Team ID, Key ID, Service ID, the key and the WeatherKit subscription, then save or press "Test WeatherKit".',
-    fr: "Apple a refusé ces identifiants deux fois de suite (HTTP 401/403) : plus rien n'est envoyé avec eux. Vérifiez le Team ID, le Key ID, le Service ID, la clé et l'abonnement WeatherKit, puis enregistrez ou appuyez sur « Tester WeatherKit ».",
+    en: 'Apple refused these credentials twice in a row (HTTP 401/403): nothing more is sent with them. Check the Team ID, Key ID, Service ID, the key and the WeatherKit subscription, then save new credentials or press "Test WeatherKit".',
+    fr: "Apple a refusé ces identifiants deux fois de suite (HTTP 401/403) : plus rien n'est envoyé avec eux. Vérifiez le Team ID, le Key ID, le Service ID, la clé et l'abonnement WeatherKit, puis enregistrez de nouveaux identifiants ou appuyez sur « Tester WeatherKit ».",
   },
   paused429: (ms) => ({
     en: `WeatherKit asked to slow down (HTTP 429): next request in ${minutes(ms)} min.`,
@@ -50,6 +50,18 @@ export const T = {
   budget: (budget) => ({
     en: `Monthly budget reached (${budget} calls): no request to Apple until the 1st of next month (UTC).`,
     fr: `Budget mensuel atteint (${budget} appels) : aucune requête à Apple avant le 1er du mois prochain (UTC).`,
+  }),
+  notServed: (reason) => ({
+    en: `WeatherKit does not serve this location or country (${reason}): asked again after one refresh interval.`,
+    fr: `WeatherKit ne sert pas ce lieu ou ce pays (${reason}) : redemandé après un intervalle de lecture.`,
+  }),
+  noTime: {
+    en: 'Not enough time left to ask WeatherKit before Gladys gives up: nothing sent.',
+    fr: "Plus assez de temps pour interroger WeatherKit avant que Gladys n'abandonne : rien envoyé.",
+  },
+  unreadable: (reason) => ({
+    en: `WeatherKit answered, but the answer is unreadable (${reason}).`,
+    fr: `WeatherKit a répondu, mais la réponse est illisible (${reason}).`,
   }),
   stateUnreadable: {
     en: '/data/state.json is unreadable: read again every 10 s, nothing is sent to Apple meanwhile.',

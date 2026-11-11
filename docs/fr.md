@@ -53,6 +53,10 @@ pendant une pause demandée par Apple ni une fois le budget atteint.
   6 heures ; sans en-tête, 60 s puis doublée.
 - **Erreur serveur, réponse illisible, trop grande (plus de 1 Mo) ou absente** : pause de 60 s, doublée à
   chaque échec jusqu'à 1 heure.
+- **Autre 4xx (400, 404…)** : le lieu ou le pays n'est pas servi ; seul ce lieu est retenu pendant un intervalle
+  de lecture, les autres continuent.
+- Gladys attend 15 s une réponse : un appel (ou sa reprise après un 401) qui ne peut pas finir à temps ne part
+  pas.
 - Pendant une pause ou une panne, Gladys reçoit la dernière copie si elle a moins d'une heure, avec sa propre
   date (jamais présentée comme neuve) ; sinon une erreur, et Gladys passe à son fournisseur suivant.
 - Les pauses, le compteur et les copies sont gardés dans `/data` : un redémarrage ne relance pas d'appel.
@@ -60,15 +64,21 @@ pendant une pause demandée par Apple ni une fois le budget atteint.
 ## Identifiants refusés
 
 Un 401 ou 403 isolé n'arrête rien : la requête est refaite une fois avec un jeton neuf. Refusés **deux fois de
-suite**, les identifiants sont notés comme refusés (une empreinte salée des identifiants et de la clé
-**publique**, rien de secret) et plus aucune requête ne part avec eux. Cela se lève en enregistrant des
-identifiants différents (essayés tout de suite) ou par un succès du bouton **Tester WeatherKit**.
+suite**, les identifiants sont notés comme refusés et plus aucune requête ne part avec eux. `/data` ne garde
+qu'**un octet** d'une empreinte salée des identifiants et de la clé **publique** : rien de secret, et rien contre
+quoi vérifier une hypothèse (une sur 256 correspond). Enregistrer d'autres identifiants pendant que le module
+tourne lève le refus tout de suite. Après un redémarrage, seul cet octet est connu : de nouveaux identifiants
+dont l'octet tombe pareil (1 chance sur 256) restent retenus jusqu'à un succès du bouton **Tester WeatherKit**,
+qui fait toujours son appel.
 
 ## Ce qui est envoyé à Apple
 
-Les coordonnées de la maison arrondies à 3 décimales (environ 100 m), la langue de l'utilisateur, le pays des
-alertes, et un jeton signé valable une heure. `/data/state.json` contient le compteur du mois, la pause, une
-empreinte salée des identifiants refusés et les dernières réponses (sans coordonnées).
+Les coordonnées de la maison arrondies à 3 décimales (environ 100 m), la langue de l'utilisateur (sa base :
+`pt-BR` → `pt`), le pays des alertes, et un jeton signé valable une heure. `/data/state.json` contient le
+compteur du mois, la pause, un octet qui marque des identifiants refusés, et les dernières réponses. Elles ne
+contiennent pas de coordonnées, mais chacune est rangée sous une empreinte salée du lieu arrondi : avec le sel à
+côté, le lieu peut être retrouvé par force brute, et les alertes nomment leur zone. `/data` reste sur votre
+Gladys.
 
 ## Correspondances
 
