@@ -1,0 +1,194 @@
+[
+  {
+    "name": "refusal: only after two in a row",
+    "file": "src/app.js",
+    "from": "if (!retried) return this.call(",
+    "to": "if (false) return this.call("
+  },
+  {
+    "name": "refusal: a new token for the second try",
+    "file": "src/app.js",
+    "from": "      this.token = null;\n      if (!retried)",
+    "to": "      if (!retried)"
+  },
+  {
+    "name": "refusal: only the refused credentials",
+    "file": "src/app.js",
+    "from": "this.state.refused && this.state.refused === this.credentialsHash(cfg)",
+    "to": "this.state.refused"
+  },
+  {
+    "name": "refusal: lifted by a success",
+    "file": "src/app.js",
+    "from": "      if (this.state.refused === hash) this.state.refused = null;\n",
+    "to": ""
+  },
+  {
+    "name": "credentials id: the public key counts",
+    "file": "src/config.js",
+    "from": "${serviceId}\\n${publicKeyHash(key)}",
+    "to": "${serviceId}"
+  },
+  {
+    "name": "budget: reached at the limit",
+    "file": "src/app.js",
+    "from": "this.state.calls >= cfg.value.monthlyBudget",
+    "to": "this.state.calls > cfg.value.monthlyBudget"
+  },
+  {
+    "name": "budget: counted on disk before sending",
+    "file": "src/app.js",
+    "from": "    await this.persistWithin(1000);\n",
+    "to": "    this.persistWithin(1000);\n"
+  },
+  {
+    "name": "month: rolled over",
+    "file": "src/app.js",
+    "from": "    if (this.state.month !== month) {",
+    "to": "    if (this.state.month === null) {"
+  },
+  {
+    "name": "pause: honoured",
+    "file": "src/app.js",
+    "from": "    if (left > 0) {\n      return this.pause.kind",
+    "to": "    if (left > 1e12) {\n      return this.pause.kind"
+  },
+  {
+    "name": "pause: bounded",
+    "file": "src/app.js",
+    "from": "const duration = Math.min(Math.max(ms, PAUSE_MIN), max);",
+    "to": "const duration = Math.max(ms, PAUSE_MIN);"
+  },
+  {
+    "name": "pause: doubling",
+    "file": "src/app.js",
+    "from": "this.backoff ? Math.min(this.backoff * 2, max) : PAUSE_MIN",
+    "to": "this.backoff ? Math.min(this.backoff, max) : PAUSE_MIN"
+  },
+  {
+    "name": "pause: future date in /data invalid",
+    "file": "src/app.js",
+    "from": "if (left > 0 && left <= max) {",
+    "to": "if (left > 0) {"
+  },
+  {
+    "name": "retry-after: server Date, not local clock",
+    "file": "src/weatherkit.js",
+    "from": "  const now = typeof serverDate === 'string' ? Date.parse(serverDate) : NaN;",
+    "to": "  const now = Date.now();"
+  },
+  {
+    "name": "copy: refresh interval",
+    "file": "src/app.js",
+    "from": "entry && this.monotonic() - entry.fetchedMono < cfg.value.refreshMs",
+    "to": "entry && this.monotonic() - entry.fetchedMono < 0"
+  },
+  {
+    "name": "copy: an hour at most",
+    "file": "src/app.js",
+    "from": "kept && this.monotonic() - kept.fetchedMono <= STALE_LIMIT",
+    "to": "kept"
+  },
+  {
+    "name": "copy: future date in /data dropped",
+    "file": "src/app.js",
+    "from": "        age < 0 ||\n",
+    "to": ""
+  },
+  {
+    "name": "/data: unreadable is not empty",
+    "file": "src/store.js",
+    "from": "      if (err?.code === 'ENOENT') return {};",
+    "to": "      return {};"
+  },
+  {
+    "name": "/data: re-read spacing",
+    "file": "src/app.js",
+    "from": "        }, STATE_RETRY);",
+    "to": "        }, 0);"
+  },
+  {
+    "name": "/data: never two reads",
+    "file": "src/app.js",
+    "from": "            settle.then(() => this.loadState());",
+    "to": "            this.rawRead = null;\n            this.loadState();"
+  },
+  {
+    "name": "config retry: doubling",
+    "file": "src/app.js",
+    "from": "this.configDelay = Math.min(delay * 2, CONFIG_RETRY_MAX);",
+    "to": "this.configDelay = delay;"
+  },
+  {
+    "name": "config retry: cancelled on disconnect",
+    "file": "src/app.js",
+    "from": "    this.connGen += 1;\n    this.cancelConfigRetry();\n  }\n\n  cancelConfigRetry",
+    "to": "    this.connGen += 1;\n  }\n\n  cancelConfigRetry"
+  },
+  {
+    "name": "test button: spacing",
+    "file": "src/app.js",
+    "from": "if (since < TEST_SPACING)",
+    "to": "if (since < 0)"
+  },
+  {
+    "name": "test button: no call during a pause",
+    "file": "src/app.js",
+    "from": "    const gate = this.gate(cfg, { test: true });\n    if (gate) return gate;\n",
+    "to": ""
+  },
+  {
+    "name": "coordinates rounded",
+    "file": "src/weatherkit.js",
+    "from": "${language}/${round3(latitude)}/${round3(longitude)}",
+    "to": "${language}/${latitude}/${longitude}"
+  },
+  {
+    "name": "http: body cut at the limit",
+    "file": "src/http.js",
+    "from": "    if (size > limit) {",
+    "to": "    if (size > limit * 100) {"
+  },
+  {
+    "name": "http: no redirect",
+    "file": "src/http.js",
+    "from": "redirect: 'manual'",
+    "to": "redirect: 'follow'"
+  },
+  {
+    "name": "values: strict numbers",
+    "file": "src/pivot.js",
+    "from": "const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);",
+    "to": "const num = (v) => (v == null ? undefined : Number(v));"
+  },
+  {
+    "name": "values: fractions bounded",
+    "file": "src/pivot.js",
+    "from": "v >= 0 && v <= 1 ? v : undefined",
+    "to": "v >= 0 ? v : undefined"
+  },
+  {
+    "name": "alerts: expired by the server clock",
+    "file": "src/pivot.js",
+    "from": "serverNowMs !== undefined && a.expires && Date.parse(a.expires) <= serverNowMs",
+    "to": "false"
+  },
+  {
+    "name": "alerts: only with a country",
+    "file": "src/config.js",
+    "from": "alerts: alerts && Boolean(country),",
+    "to": "alerts,"
+  },
+  {
+    "name": "conditions: own keys only",
+    "file": "src/conditions.js",
+    "from": "typeof code === 'string' && Object.hasOwn(CONDITIONS, code)",
+    "to": "typeof code === 'string' && code in CONDITIONS"
+  },
+  {
+    "name": "key: P-256 only",
+    "file": "src/jwt.js",
+    "from": "key.asymmetricKeyType === 'ec' && key.asymmetricKeyDetails?.namedCurve === 'prime256v1'",
+    "to": "key.asymmetricKeyType === 'ec'"
+  }
+]

@@ -1,61 +1,117 @@
-# Demo Devices Template
+# Apple WeatherKit for Gladys
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+**Unofficial** connector, not affiliated with Apple. It makes **Apple WeatherKit** the weather provider of Gladys:
+current conditions, 24-hour and 8-day forecasts, and the official alerts of the country you set. The weather
+widget, the assistant and the weather-alert scene triggers of Gladys use it directly.
 
-## What you get
+> This integration was **never tested with a real Apple Developer account**: it is written from the
+> documentation of the WeatherKit REST API. Feedback is welcome.
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+## What you need
+
+- An **Apple Developer Program** membership of your own (paid: 99 USD a year). It includes **500,000 WeatherKit
+  calls a month** for the whole team; above that, Apple sells paid tiers in your developer account.
+- Gladys 5.1 or later, and at least one located house (Settings → Houses) for the test button.
+
+## Getting the credentials
+
+On [developer.apple.com/account](https://developer.apple.com/account):
+
+1. **Team ID**: _Membership details_, 10 characters.
+2. **Service ID**: _Certificates, Identifiers & Profiles_ → _Identifiers_ → **+** → _Services IDs_, for example
+   `com.example.weather`.
+3. **Key**: _Keys_ → **+** → tick **WeatherKit** → register, then download `AuthKey_XXXXXXXXXX.p8` (Apple gives it
+   once). The 10 characters after `AuthKey_` are the **Key ID**.
+
+See also [WeatherKit: get started](https://developer.apple.com/weatherkit/get-started/).
 
 ## Configuration
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+| Field                       | Purpose                                                                                                                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Team ID, Key ID, Service ID | The identifiers above.                                                                                                                                                                                                                                                  |
+| Private key (.p8)           | The whole `.p8` file, `-----BEGIN/END PRIVATE KEY-----` lines included (pasted on one line works too). Kept by Gladys in its database, never shown again, used only to sign the requests sent to Apple WeatherKit. It never appears in the logs, the status or `/data`. |
+| Country for the alerts      | Two-letter code (FR, BE, US...). WeatherKit gives alerts only with it. Empty: no alerts.                                                                                                                                                                                |
+| Weather alerts              | On by default (when a country is set).                                                                                                                                                                                                                                  |
+| Refresh interval            | 15 minutes by default (10 to 120). A location is read from Apple at most once per interval.                                                                                                                                                                             |
+| Monthly budget              | 50,000 calls by default (1,000 to 500,000), per calendar month in UTC.                                                                                                                                                                                                  |
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+**Test WeatherKit** makes one call (the data sets at your first located house, or at Cupertino when no house
+has a location): it says whether Apple accepts the credentials, whether alerts exist for your country, and the
+calls of the month. It runs at most once every 30 seconds, and not during a pause asked by Apple nor once the
+budget is reached.
 
-## Actions
+## Costs, quotas and pacing
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+- Gladys asks for the weather when a dashboard shows it, when the assistant answers, and every 30 minutes for
+  the alerts. The integration answers from its kept copy while it is younger than the interval: with 15 minutes,
+  count **about 3,000 calls a month per location**.
+- Each call is counted in `/data` before it leaves. Once the budget is reached, nothing is sent until the 1st of
+  the next month (UTC). Apple counts the calls of your other apps in the same quota.
+- **HTTP 429**: paused as long as `Retry-After` says (compared with Apple's `Date` header), between 60 s and
+  6 hours; without the header, 60 s then doubled.
+- **Server error, unreadable, oversized (over 1 MB) or missing answer**: 60 s pause, doubled at each failure up
+  to 1 hour.
+- During a pause or an outage, Gladys gets the last copy if it is under one hour old, with its own date (never
+  presented as new); otherwise an error, and Gladys moves on to its next provider.
+- Pauses, the counter and the copies are kept in `/data`: a restart does not trigger a call.
 
-## Scenes
+## Refused credentials
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+A single 401 or 403 stops nothing: the request is made once more with a new token. Refused **twice in a row**,
+the credentials are recorded as refused (a salted hash of the identifiers and of the **public** key, nothing
+secret) and no request leaves with them any more. This is lifted by saving different credentials (tried at
+once) or by a success of **Test WeatherKit**.
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+## What is sent to Apple
 
-## Dashboard
+The coordinates of the house rounded to 3 decimals (about 100 m), the user's language, the alert country, and a
+token signed for one hour. `/data/state.json` holds the month counter, the pause, a salted hash of refused
+credentials and the last answers (without coordinates).
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+## Mappings
 
-## Troubleshooting
+| WeatherKit                             | Gladys                   |
+| -------------------------------------- | ------------------------ |
+| Clear, MostlyClear, Hot, Frigid        | clear                    |
+| PartlyCloudy / MostlyCloudy, Cloudy    | partly-cloudy / cloud    |
+| Fog, Haze, Smoke                       | fog                      |
+| Drizzle / Rain, Showers... / HeavyRain | drizzle / rain / pouring |
+| FreezingDrizzle, FreezingRain          | freezing-rain            |
+| Sleet, WintryMix, MixedRainAndSnow...  | sleet                    |
+| Snow, Flurries, Blizzard...            | snow                     |
+| Hail                                   | hail                     |
+| Thunderstorms, StrongStorms...         | thunderstorm             |
+| Breezy, Windy / Dust, BlowingDust      | wind / sandstorm         |
+| TropicalStorm, Hurricane / Tornado     | hurricane / tornado      |
+| any other code                         | unknown                  |
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+Units: WeatherKit answers in metric; the integration converts to m/s and km (metric) or °F, mph, inches and miles
+(US); pressure stays in hPa; humidity, cloud cover and precipitation chance in percent. A missing value stays
+missing, never 0.
+
+Alerts: Apple's CAP severity is kept; "unknown" becomes "minor" (the alert is kept). The phenomenon (storm, wind,
+snow...) is read from the title in English, French, German or Spanish; without a match the alert is shown with
+its title alone. The description gives the area and the source; the long text is not fetched (one more call per
+alert). Alerts expired by Apple's clock are removed.
+
+## Attribution
+
+Apple asks to show the Apple Weather mark and a link to its data sources:
+<https://weatherkit.apple.com/legal-attribution.html>. The Gladys weather widget cannot show it yet: the link is
+on the configuration screen and here.
+
+## Statuses
+
+- "Enter the Team ID...": nothing configured.
+- "Invalid configuration: ...": names the wrong fields (never their value); nothing is sent.
+- "Ready", then "WeatherKit answers".
+- "Apple refused these credentials...", "WeatherKit asked to slow down...", "did not answer properly...",
+  "Monthly budget reached...".
+- "/data/state.json is unreadable": read again every 10 s, nothing is sent meanwhile (an unreadable file is not
+  taken as empty).
+- "The configuration could not be read": new try after 5 s, then doubled up to 5 minutes.
+
+## Limits
+
+No minute-by-minute forecast, no radar image, no air quality. Apache-2.0 license.

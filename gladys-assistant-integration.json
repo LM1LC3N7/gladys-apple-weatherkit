@@ -1,177 +1,153 @@
 {
   "manifest_version": 1,
-  "type": "device",
-  "name": "Demo Devices Template",
+  "type": "weather",
+  "name": "Apple WeatherKit",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Unofficial connector: Apple WeatherKit weather, forecasts and alerts, with your Apple key.",
+    "fr": "Non officiel : météo, prévisions et alertes Apple WeatherKit, avec votre clé Apple."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-apple-weatherkit:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-apple-weatherkit/main/cover.png",
+  "categories": ["environment"],
+  "transports": ["cloud"],
+  "location": true,
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": { "en": "Apple WeatherKit in Gladys", "fr": "Apple WeatherKit dans Gladys" },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Unofficial connector, not affiliated with Apple. It makes Apple WeatherKit the weather provider of Gladys: current conditions, 24 hours, 8 days, and the official alerts of the country you set. It needs your own Apple Developer Program membership (paid, 99 USD a year, which includes 500,000 WeatherKit calls a month for the whole team): a WeatherKit key (.p8), its Key ID, your Team ID and a Service ID. Each location is read at most once per refresh interval, and a monthly budget stops the calls before your quota. Data: Apple Weather (see the attribution link).",
+        "fr": "Connecteur non officiel, sans lien avec Apple. Il fait d'Apple WeatherKit le fournisseur météo de Gladys : conditions actuelles, 24 heures, 8 jours, et les alertes officielles du pays saisi. Il faut votre propre abonnement Apple Developer Program (payant, 99 USD par an, qui inclut 500 000 appels WeatherKit par mois pour toute l'équipe) : une clé WeatherKit (.p8), son Key ID, votre Team ID et un Service ID. Chaque lieu est lu au plus une fois par intervalle, et un budget mensuel arrête les appels avant votre quota. Données : Apple Météo (voir le lien d'attribution)."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://developer.apple.com/weatherkit/get-started/",
+          "label": {
+            "en": "WeatherKit: get started (Apple)",
+            "fr": "WeatherKit : premiers pas (Apple)"
+          }
+        },
+        {
+          "url": "https://weatherkit.apple.com/legal-attribution.html",
+          "label": {
+            "en": "Apple Weather data sources (attribution)",
+            "fr": "Sources des données Apple Météo (attribution)"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-apple-weatherkit/blob/main/docs/fr.md",
+          "label": { "en": "Guide (French)", "fr": "Guide (français)" }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-apple-weatherkit/blob/main/docs/en.md",
+          "label": { "en": "Guide (English)", "fr": "Guide (anglais)" }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
+      "key": "team_id",
+      "type": "string",
+      "label": { "en": "Team ID", "fr": "Team ID" },
       "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+        "en": "The 10 characters of your Apple Developer team (Membership details).",
+        "fr": "Les 10 caractères de votre équipe Apple Developer (Membership details)."
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "placeholder": { "en": "e.g. A1B2C3D4E5", "fr": "ex. A1B2C3D4E5" }
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
+      "key": "key_id",
+      "type": "string",
+      "label": { "en": "Key ID", "fr": "Key ID" },
       "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+        "en": "The 10 characters of the WeatherKit key (Certificates, Identifiers & Profiles → Keys).",
+        "fr": "Les 10 caractères de la clé WeatherKit (Certificates, Identifiers & Profiles → Keys)."
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
       "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "placeholder": { "en": "e.g. 9Z8Y7X6W5V", "fr": "ex. 9Z8Y7X6W5V" }
     },
     {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "service_id",
+      "type": "string",
+      "label": { "en": "Service ID", "fr": "Service ID" },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "The identifier of a Services ID registered with WeatherKit, in reverse-domain form.",
+        "fr": "L'identifiant d'un Services ID enregistré avec WeatherKit, sous forme de domaine inversé."
+      },
+      "required": true,
+      "placeholder": { "en": "e.g. com.example.weather", "fr": "ex. com.exemple.meteo" }
+    },
+    {
+      "key": "private_key",
+      "type": "secret",
+      "label": { "en": "Private key (.p8)", "fr": "Clé privée (.p8)" },
+      "description": {
+        "en": "The whole content of the AuthKey_XXXXXXXXXX.p8 file, header lines included. Kept by Gladys in its database, never shown again, used only to sign the requests sent to Apple WeatherKit.",
+        "fr": "Tout le contenu du fichier AuthKey_XXXXXXXXXX.p8, lignes d'en-tête comprises. Gardée par Gladys dans sa base, jamais réaffichée, utilisée seulement pour signer les requêtes envoyées à Apple WeatherKit."
+      },
+      "required": true
+    },
+    {
+      "key": "country",
+      "type": "string",
+      "label": { "en": "Country for the alerts", "fr": "Pays des alertes" },
+      "description": {
+        "en": "Two-letter country code of your houses (FR, BE, US...). WeatherKit gives alerts only with it. Empty: no alerts.",
+        "fr": "Code pays à deux lettres de vos maisons (FR, BE, US...). WeatherKit ne donne les alertes qu'avec lui. Vide : pas d'alertes."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "placeholder": { "en": "e.g. FR", "fr": "ex. FR" }
+    },
+    {
+      "key": "alerts",
+      "type": "boolean",
+      "label": { "en": "Weather alerts", "fr": "Alertes météo" },
+      "description": {
+        "en": "Asks WeatherKit for the official alerts of the country set above, shown by the weather widget and used by the weather-alert scene triggers of Gladys.",
+        "fr": "Demande à WeatherKit les alertes officielles du pays saisi, affichées par le widget météo et utilisées par les déclencheurs de scène d'alerte météo de Gladys."
+      },
+      "required": false,
+      "default": true
+    },
+    {
+      "key": "refresh_minutes",
+      "type": "number",
+      "label": { "en": "Refresh interval (minutes)", "fr": "Intervalle de lecture (minutes)" },
+      "description": {
+        "en": "A location is read from Apple at most once per interval; Gladys gets the kept copy in between. 15 minutes is about 3,000 calls a month per location.",
+        "fr": "Un lieu est lu chez Apple au plus une fois par intervalle ; Gladys reçoit la copie gardée entre-temps. 15 minutes font environ 3 000 appels par mois et par lieu."
+      },
+      "required": false,
+      "default": 15,
+      "min": 10,
+      "max": 120
+    },
+    {
+      "key": "monthly_budget",
+      "type": "number",
+      "label": { "en": "Monthly budget (calls)", "fr": "Budget mensuel (appels)" },
+      "description": {
+        "en": "Calls allowed per calendar month (UTC), counted by this integration only. Reached: no call until the next month. Apple counts the calls of all your apps in the same quota.",
+        "fr": "Appels permis par mois civil (UTC), comptés par cette intégration seulement. Atteint : aucun appel avant le mois suivant. Apple compte les appels de toutes vos applications dans le même quota."
+      },
+      "required": false,
+      "default": 50000,
+      "min": 1000,
+      "max": 500000
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "test_connection",
+      "timeout_seconds": 30,
+      "label": { "en": "Test WeatherKit", "fr": "Tester WeatherKit" },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+        "en": "One call to Apple with these credentials: says whether they are accepted, which data sets exist at your house, and the calls of the month.",
+        "fr": "Un appel à Apple avec ces identifiants : indique s'ils sont acceptés, les données disponibles à votre maison et les appels du mois."
+      }
     }
   ]
 }

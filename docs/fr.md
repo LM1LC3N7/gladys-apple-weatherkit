@@ -1,67 +1,118 @@
-# Template de démonstration
+# Apple WeatherKit pour Gladys
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Connecteur **non officiel**, sans lien avec Apple. Il fait d'**Apple WeatherKit** le fournisseur météo de
+Gladys : conditions actuelles, prévisions sur 24 heures et 8 jours, et alertes officielles du pays saisi. Le
+widget météo, l'assistant et les déclencheurs de scène d'alerte météo de Gladys s'en servent directement.
 
-## Ce que vous obtenez
+> Ce module n'a **jamais été testé avec un vrai compte** Apple Developer : il est écrit d'après la
+> documentation de l'API REST WeatherKit. Vos retours sont les bienvenus.
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+## Ce qu'il faut
+
+- Un abonnement **Apple Developer Program** à votre nom (payant : 99 USD par an). Il inclut **500 000 appels
+  WeatherKit par mois** pour toute l'équipe ; au-delà, Apple propose des forfaits payants dans votre compte
+  développeur.
+- Gladys 5.1 ou plus récent, et au moins une maison localisée (Paramètres → Maisons) pour le bouton de test.
+
+## Obtenir les identifiants
+
+Sur [developer.apple.com/account](https://developer.apple.com/account) :
+
+1. **Team ID** : _Membership details_, 10 caractères.
+2. **Service ID** : _Certificates, Identifiers & Profiles_ → _Identifiers_ → **+** → _Services IDs_, par exemple
+   `com.exemple.meteo`.
+3. **Clé** : _Keys_ → **+** → cochez **WeatherKit** → enregistrez, puis téléchargez le fichier
+   `AuthKey_XXXXXXXXXX.p8` (Apple ne le donne qu'une fois). Les 10 caractères après `AuthKey_` sont le **Key ID**.
+
+Voir aussi [WeatherKit : premiers pas](https://developer.apple.com/weatherkit/get-started/).
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+| Champ                       | Rôle                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Team ID, Key ID, Service ID | Les identifiants ci-dessus.                                                                                                                                                                                                                                                                                                                 |
+| Clé privée (.p8)            | Tout le contenu du fichier `.p8`, lignes `-----BEGIN/END PRIVATE KEY-----` comprises (collée sur une ligne, elle est aussi acceptée). Gardée par Gladys dans sa base, jamais réaffichée, utilisée seulement pour signer les requêtes envoyées à Apple WeatherKit. Elle n'apparaît ni dans les journaux, ni dans le statut, ni dans `/data`. |
+| Pays des alertes            | Code à deux lettres (FR, BE, US…). WeatherKit ne donne les alertes qu'avec lui. Vide : pas d'alertes.                                                                                                                                                                                                                                       |
+| Alertes météo               | Activées par défaut (si un pays est saisi).                                                                                                                                                                                                                                                                                                 |
+| Intervalle de lecture       | 15 minutes par défaut (10 à 120). Un lieu est lu chez Apple au plus une fois par intervalle.                                                                                                                                                                                                                                                |
+| Budget mensuel              | 50 000 appels par défaut (1 000 à 500 000), par mois civil UTC.                                                                                                                                                                                                                                                                             |
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Le bouton **Tester WeatherKit** fait un appel (données disponibles à votre première maison localisée, ou à
+Cupertino si aucune maison n'a de position) : il dit si Apple accepte les identifiants, si les alertes existent
+pour votre pays, et le nombre d'appels du mois. Il fonctionne au plus une fois toutes les 30 secondes, et pas
+pendant une pause demandée par Apple ni une fois le budget atteint.
 
-## Actions
+## Coûts, quotas et rythme
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+- Gladys demande la météo quand un tableau de bord s'affiche, quand l'assistant répond, et toutes les
+  30 minutes pour les alertes. Le module répond avec la copie gardée tant qu'elle a moins d'un intervalle :
+  avec 15 minutes, comptez **environ 3 000 appels par mois et par lieu**.
+- Chaque appel est compté dans `/data` avant de partir. Le budget atteint, plus rien n'est envoyé jusqu'au
+  1er du mois suivant (UTC). Apple compte aussi les appels de vos autres applications dans le même quota.
+- **HTTP 429** : pause selon l'en-tête `Retry-After` (comparé à l'en-tête `Date` d'Apple), entre 60 s et
+  6 heures ; sans en-tête, 60 s puis doublée.
+- **Erreur serveur, réponse illisible, trop grande (plus de 1 Mo) ou absente** : pause de 60 s, doublée à
+  chaque échec jusqu'à 1 heure.
+- Pendant une pause ou une panne, Gladys reçoit la dernière copie si elle a moins d'une heure, avec sa propre
+  date (jamais présentée comme neuve) ; sinon une erreur, et Gladys passe à son fournisseur suivant.
+- Les pauses, le compteur et les copies sont gardés dans `/data` : un redémarrage ne relance pas d'appel.
 
-## Scènes
+## Identifiants refusés
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+Un 401 ou 403 isolé n'arrête rien : la requête est refaite une fois avec un jeton neuf. Refusés **deux fois de
+suite**, les identifiants sont notés comme refusés (une empreinte salée des identifiants et de la clé
+**publique**, rien de secret) et plus aucune requête ne part avec eux. Cela se lève en enregistrant des
+identifiants différents (essayés tout de suite) ou par un succès du bouton **Tester WeatherKit**.
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+## Ce qui est envoyé à Apple
 
-## Tableau de bord
+Les coordonnées de la maison arrondies à 3 décimales (environ 100 m), la langue de l'utilisateur, le pays des
+alertes, et un jeton signé valable une heure. `/data/state.json` contient le compteur du mois, la pause, une
+empreinte salée des identifiants refusés et les dernières réponses (sans coordonnées).
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+## Correspondances
 
-## Dépannage
+| WeatherKit                           | Gladys                   |
+| ------------------------------------ | ------------------------ |
+| Clear, MostlyClear, Hot, Frigid      | clear                    |
+| PartlyCloudy / MostlyCloudy, Cloudy  | partly-cloudy / cloud    |
+| Fog, Haze, Smoke                     | fog                      |
+| Drizzle / Rain, Showers… / HeavyRain | drizzle / rain / pouring |
+| FreezingDrizzle, FreezingRain        | freezing-rain            |
+| Sleet, WintryMix, MixedRainAndSnow…  | sleet                    |
+| Snow, Flurries, Blizzard…            | snow                     |
+| Hail                                 | hail                     |
+| Thunderstorms, StrongStorms…         | thunderstorm             |
+| Breezy, Windy / Dust, BlowingDust    | wind / sandstorm         |
+| TropicalStorm, Hurricane / Tornado   | hurricane / tornado      |
+| autre code                           | unknown                  |
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Unités : WeatherKit répond en métrique ; le module convertit en m/s, km (métrique) ou °F, mph, pouces, miles
+(US) ; la pression reste en hPa ; humidité, nébulosité et probabilité de pluie en pourcentage. Une valeur absente
+reste absente, jamais 0.
+
+Alertes : la gravité CAP d'Apple est reprise ; « unknown » devient « minor » (l'alerte est gardée). Le type de
+phénomène (orage, vent, neige…) est déduit du titre en anglais, français, allemand ou espagnol ; sans
+correspondance, l'alerte est montrée avec son titre seul. La description donne la zone et la source ; le texte
+long n'est pas demandé (un appel de plus par alerte). Les alertes expirées selon l'heure d'Apple sont retirées.
+
+## Attribution
+
+Apple demande d'afficher la marque Apple Météo et un lien vers les sources de ses données :
+<https://weatherkit.apple.com/legal-attribution.html>. Le widget météo de Gladys ne sait pas encore l'afficher :
+le lien est dans l'écran de configuration et ici.
+
+## Statuts
+
+- « Saisissez le Team ID… » : rien de configuré.
+- « Configuration invalide : … » : nomme les champs fautifs (jamais leur valeur) ; rien n'est envoyé.
+- « Prêt » puis « WeatherKit répond ».
+- « Apple a refusé ces identifiants… », « WeatherKit a demandé de ralentir… », « n'a pas répondu
+  correctement… », « Budget mensuel atteint… ».
+- « /data/state.json est illisible » : relu toutes les 10 s, rien n'est envoyé en attendant (un fichier
+  illisible n'est pas traité comme vide).
+- « La configuration n'a pas pu être lue » : nouvel essai après 5 s, puis doublé jusqu'à 5 minutes.
+
+## Limites
+
+Pas de prévision minute par minute, pas d'image radar, pas de qualité de l'air. Licence Apache-2.0.
