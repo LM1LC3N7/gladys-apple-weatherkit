@@ -140,7 +140,10 @@ test('the weather: one signed call, metric conversions, alerts typed, copy reuse
   );
   assert.equal(call.url.searchParams.get('countryCode'), 'FR');
   assert.equal(call.init.redirect, 'manual');
-  assert.match(call.init.headers['User-Agent'], /^gladys-apple-weatherkit\/0\.1\.0 \(\+https:/);
+  assert.match(
+    call.init.headers['User-Agent'],
+    /^gladys-apple-weatherkit\/\d+\.\d+\.\d+ \(\+https:/,
+  );
   const token = call.init.headers.Authorization.replace(/^Bearer /, '');
   const [h, p, s] = token.split('.');
   const header = JSON.parse(Buffer.from(h, 'base64url'));

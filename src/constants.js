@@ -2,7 +2,12 @@
 // Endpoints, pacing and limits. Every delay is in milliseconds.
 // -----------------------------------------------------------------------------
 
-export const VERSION = '0.1.0';
+import { readFileSync } from 'node:fs';
+
+/** The version of this integration, from package.json (copied in the image). */
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
+export const VERSION = pkg.version;
 export const REPO_URL = 'https://github.com/LM1LC3N7/gladys-apple-weatherkit';
 export const USER_AGENT = `gladys-apple-weatherkit/${VERSION} (+${REPO_URL})`;
 
