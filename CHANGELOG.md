@@ -6,6 +6,8 @@ uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-24
+
 ### Fixed
 
 - The User-Agent gives the real version (it said 0.1.0 whatever the release).
@@ -23,5 +25,6 @@ uses [semantic versioning](https://semver.org/).
 - Credentials refused twice in a row are no longer sent; "Test WeatherKit"
   checks them and lifts the refusal.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-apple-weatherkit/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-apple-weatherkit/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LM1LC3N7/gladys-apple-weatherkit/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-apple-weatherkit/releases/tag/v0.1.1
